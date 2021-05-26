@@ -18,7 +18,6 @@ import { createServer } from "http"
 import path from 'path'
 import cors from 'cors'
 import JSONdb from 'simple-json-db'
-import { Socket } from 'dgram'
 
 const app = express()
 const server = createServer(app)
@@ -48,15 +47,19 @@ app.get("/api/players", (req, res) => {
     res.status(200).send(CLIENTS.JSON())
 })
 
+app.get("/api/rooms/:roomId", (req, res) => {
+    const roomId = req.params.roomId
+    res.status(200).send(ROOMS.get(roomId))
+
+})
+
 app.get("/api/rooms", (req, res) => {
     res.status(200).send(ROOMS.JSON())
 })
 
 
-
-
 app.get('/', (req, res) => {
-    res.render('Main', { numberOfClients: Object.keys(CLIENTS).length});
+    res.render('Main', { numberOfClients: CLIENTS});
 });
 
 server.listen(PORT, () => {
@@ -97,6 +100,21 @@ io.on('connection', (socket) => {
         socketPlayerCount(io)
     })
 
+
+    socket.on('joinRoom', (data)=>{
+        var d = ROOMS.get(data.hostID)
+        ROOMS.set(data.hostID, {
+            ...d,
+            clientID: data.clientID,
+            clientName: data.clientName,
+            status: data.status
+        })
+
+        RoomNewUpdate(socket)
+
+    })
+
+
     socketCreateRoom(socket)
 
 })
@@ -109,13 +127,18 @@ const socketCreateRoom = (socket) => {
     socket.on("createRoom", (data) =>{
         if(!ROOMS.has(socket.id)){
             ROOMS.set(socket.id, {
-                hostName: data.name
+                hostName: data.name,
+                status: 'waiting'
             })
             console.log(ROOMS.JSON())
-           socket.broadcast.emit("showRoom", {...ROOMS.JSON()})
+            RoomNewUpdate(socket)
         }else{
             console.log('room already created ee')
         }
  
     })
+}
+
+const RoomNewUpdate = (socket) =>{
+    socket.broadcast.emit("showRoom", {...ROOMS.JSON()})
 }
